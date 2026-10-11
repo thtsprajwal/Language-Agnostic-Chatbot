@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { GraduationCap, Users, Shield, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ const LoginPage = () => {
   const [selectedRole, setSelectedRole] = useState<Role>("student");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [requiresMfa, setRequiresMfa] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -29,7 +31,7 @@ const LoginPage = () => {
     setIsSubmitting(true);
 
     try {
-      await login(email, password, selectedRole);
+      await login(email, password, selectedRole, requiresMfa ? mfaCode : undefined);
       const routes: Record<Role, string> = {
         student: "/student",
         faculty: "/faculty",
@@ -39,7 +41,16 @@ const LoginPage = () => {
       toast.success("Login successful!");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed. Please try again.";
-      toast.error(message);
+      const requiresMfaChallenge = typeof error === "object" && error !== null && "requiresMfa" in error
+        ? Boolean((error as { requiresMfa?: boolean }).requiresMfa)
+        : false;
+
+      if (requiresMfaChallenge) {
+        setRequiresMfa(true);
+        toast.info("Enter your MFA code to complete login.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -126,13 +137,44 @@ const LoginPage = () => {
               </div>
             </div>
 
+            {requiresMfa && (
+              <div className="space-y-2">
+                <Label htmlFor="mfa">Authenticator Code</Label>
+                <Input
+                  id="mfa"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Enter 6-digit code"
+                  required
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                />
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full bg-gradient-primary hover:shadow-glow transition-all"
               disabled={isSubmitting || isLoading}
             >
-              {isSubmitting ? "Signing in..." : "Sign In"}
+              {isSubmitting ? "Signing in..." : requiresMfa ? "Verify & Sign In" : "Sign In"}
             </Button>
+
+            <div className="flex items-center justify-between text-sm pt-2">
+              <Link to="/request-password-reset" className="text-primary hover:underline">
+                Forgot password?
+              </Link>
+              <Link to="/register" className="text-primary hover:underline">
+                Create account
+              </Link>
+            </div>
+
+            <div className="text-sm text-center text-muted-foreground">
+              Need to verify your account? {" "}
+              <Link to="/request-email-verification" className="text-primary hover:underline">
+                Verify email
+              </Link>
+            </div>
           </form>
         </div>
       </div>

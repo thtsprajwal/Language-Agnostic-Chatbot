@@ -80,8 +80,12 @@ const AdminDashboard = () => {
               </p>
             </Card>
 
-            <Card title="User Management" icon={Shield}>
-              <p className="text-sm">Manage roles, permissions, and access control</p>
+            <Card
+              title="User Management"
+              icon={Shield}
+              onClick={() => navigate("/admin/approvals")}
+            >
+              <p className="text-sm">Manage role approvals and access control</p>
             </Card>
 
             <Card title="System Settings" icon={Settings}>

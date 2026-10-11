@@ -10,6 +10,12 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 
 // Login
 import LoginPage from "./pages/login";
+import RegisterPage from "./pages/auth/register";
+import RequestEmailVerificationPage from "./pages/auth/request-email-verification";
+import VerifyEmailPage from "./pages/auth/verify-email";
+import RequestPasswordResetPage from "./pages/auth/request-password-reset";
+import ResetPasswordPage from "./pages/auth/reset-password";
+import SecuritySettingsPage from "./pages/account/security";
 
 // Student Pages
 import StudentDashboard from "./pages/student";
@@ -28,6 +34,7 @@ import FacultyAnalytics from "./pages/faculty/analytics";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin";
+import AdminApprovals from "./pages/admin/approvals";
 import AdminChatbot from "./pages/admin/chatbot";
 import AdminAnalytics from "./pages/admin/analytics";
 
@@ -48,7 +55,20 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/request-email-verification" element={<RequestEmailVerificationPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/request-password-reset" element={<RequestPasswordResetPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/visitor" element={<VisitorLanding />} />
+            <Route
+              path="/account/security"
+              element={
+                <ProtectedRoute>
+                  <SecuritySettingsPage />
+                </ProtectedRoute>
+              }
+            />
             
             {/* Student Routes */}
             <Route
@@ -148,6 +168,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/approvals"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminApprovals />
                 </ProtectedRoute>
               }
             />

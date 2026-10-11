@@ -59,6 +59,9 @@ const Header = ({ title, userInfo }: HeaderProps) => {
               <DropdownMenuItem onClick={() => setShowProfileModal(true)}>
                 Change Password
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/account/security")}>
+                Security Settings
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
                 <LogOut className="w-4 h-4 mr-2" />

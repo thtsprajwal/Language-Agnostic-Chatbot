@@ -26,7 +26,10 @@ export const authenticateJWT = (req, res, next) => {
     req.user = {
       id: payload.sub,
       role: payload.role,
+      approvalStatus: payload.approvalStatus,
       email: payload.email,
+      emailVerified: Boolean(payload.emailVerified),
+      mfaEnabled: Boolean(payload.mfaEnabled),
     };
     return next();
   } catch {

@@ -15,6 +15,9 @@ interface User {
   id: string;
   email: string;
   role: Role;
+  approvalStatus?: "pending" | "approved" | "rejected";
+  emailVerified?: boolean;
+  mfaEnabled?: boolean;
 }
 
 interface AuthResponse {
@@ -27,10 +30,14 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string, role: Role) => Promise<void>;
+  login: (email: string, password: string, role: Role, mfaCode?: string) => Promise<void>;
   register: (email: string, password: string, role: Role) => Promise<void>;
   logout: () => Promise<void>;
 }
+
+type AuthError = Error & {
+  requiresMfa?: boolean;
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -44,10 +51,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
   }, []);
 
+  const getCsrfToken = useCallback(async () => {
+    const response = await fetch("/api/auth/csrf-token", {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as { csrfToken?: string };
+    return data.csrfToken ?? null;
+  }, []);
+
   const refreshAccessToken = useCallback(async () => {
+    const csrfToken = await getCsrfToken();
     const response = await fetch("/api/auth/refresh", {
       method: "POST",
       credentials: "include",
+      headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
     });
 
     if (!response.ok) {
@@ -59,14 +82,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(data.accessToken);
     setUser(data.user);
     return data.accessToken;
-  }, [clearAuthState]);
+  }, [clearAuthState, getCsrfToken]);
 
   useEffect(() => {
     configureApiClient({
       getToken: () => token,
       handleUnauthorized: refreshAccessToken,
+      getCsrfToken,
     });
-  }, [token, refreshAccessToken]);
+  }, [token, refreshAccessToken, getCsrfToken]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -80,19 +104,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void bootstrap();
   }, [refreshAccessToken]);
 
-  const login = useCallback(async (email: string, password: string, role: Role) => {
+  const login = useCallback(async (email: string, password: string, role: Role, mfaCode?: string) => {
     setIsLoading(true);
     try {
+      const csrfToken = await getCsrfToken();
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
         credentials: "include",
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password, role, ...(mfaCode ? { mfaCode } : {}) }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Login failed");
+        const authError: AuthError = new Error(error.message || "Login failed");
+        authError.requiresMfa = Boolean(error.requiresMfa);
+        throw authError;
       }
 
       const data = (await response.json()) as AuthResponse;
@@ -101,14 +131,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [getCsrfToken]);
 
   const register = useCallback(async (email: string, password: string, role: Role) => {
     setIsLoading(true);
     try {
+      const csrfToken = await getCsrfToken();
       const response = await fetch("/api/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({ email, password, role }),
       });
@@ -118,25 +152,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(error.message || "Registration failed");
       }
 
-      const data = (await response.json()) as AuthResponse;
-      setToken(data.accessToken);
-      setUser(data.user);
+      const data = (await response.json()) as AuthResponse & { message?: string; approvalStatus?: string };
+      if (data.accessToken) {
+        setToken(data.accessToken);
+        setUser(data.user);
+      } else {
+        setToken(null);
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [getCsrfToken]);
 
   const logout = useCallback(async () => {
     try {
+      const csrfToken = await getCsrfToken();
       await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
       });
     } finally {
       clearAuthState();
     }
-  }, [token, clearAuthState]);
+  }, [token, clearAuthState, getCsrfToken]);
 
   const value = useMemo(
     () => ({
