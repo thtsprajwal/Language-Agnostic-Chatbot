@@ -2,12 +2,14 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
-import { authenticator } from "otplib";
+import * as otplib from "otplib";
 import QRCode from "qrcode";
 import AuditLog from "../models/audit.model.js";
 import Session from "../models/session.model.js";
 import User from "../models/user.model.js";
 import { APPROVAL_STATES, canUserLogin, getApprovalStatusForRole } from "../utils/authPolicy.js";
+
+const { authenticator } = otplib;
 
 const ROLES = ["student", "faculty", "admin"];
 const ACCESS_TOKEN_EXPIRES_IN = "15m";

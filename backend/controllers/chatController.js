@@ -5,7 +5,10 @@ import { v4 as uuidv4 } from "uuid";
 export const chatController = async (req, res) => {
   try {
     const { message, conversationId } = req.body;
-    const userId = req.user.id;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
 
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
@@ -70,13 +73,7 @@ Help students with:
       throw new Error("GROQ_API_KEY environment variable is not set");
     }
 
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Transfer-Encoding", "chunked");
-    res.setHeader("x-conversation-id", activeConversationId);
-
-    if (isNewConversation) {
-      res.setHeader("x-conversation-title", message.slice(0, 30));
-    }
+    const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
     const groqResponse = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -87,7 +84,7 @@ Help students with:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: groqModel,
           messages: formattedMessages,
           stream: true,
           temperature: 0,
@@ -98,9 +95,34 @@ Help students with:
     if (!groqResponse.ok) {
       const errorText = await groqResponse.text();
       console.error("GROQ API Error Response:", errorText);
-      throw new Error(
-        `GROQ API request failed with status ${groqResponse.status}`
-      );
+
+      let providerMessage = "Unable to process request from LLM provider";
+      try {
+        const parsed = JSON.parse(errorText);
+        providerMessage = parsed?.error?.message || providerMessage;
+      } catch {
+        providerMessage = errorText || providerMessage;
+      }
+
+      if (groqResponse.status === 404) {
+        return res.status(502).json({
+          error: `Configured GROQ model "${groqModel}" is unavailable for this API key. Set GROQ_MODEL to a model your account can access.`,
+          providerMessage,
+        });
+      }
+
+      return res.status(502).json({
+        error: `GROQ API request failed with status ${groqResponse.status}`,
+        providerMessage,
+      });
+    }
+
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("x-conversation-id", activeConversationId);
+
+    if (isNewConversation) {
+      res.setHeader("x-conversation-title", message.slice(0, 30));
     }
 
     const reader = groqResponse.body?.getReader();

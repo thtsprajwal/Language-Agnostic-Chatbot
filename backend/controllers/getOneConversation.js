@@ -5,7 +5,10 @@ import Message from "../models/messages.model.js";
 export const getOneConversation = async(req,res) => {
     try{
         const {id} = req.params;
-        const userId = req.user.id;
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
         const messages = await Message.find({conversationId : id, userId});
         if(!messages || messages.length === 0){
             return res.status(404).json({message:"Conversation not found"});

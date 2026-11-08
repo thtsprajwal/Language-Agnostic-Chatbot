@@ -15,10 +15,21 @@ const PORT = process.env.PORT || 5500;
 const app = express();
 
 const frontendOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
-const allowedOrigins = (process.env.CORS_ORIGIN || frontendOrigin)
+const configuredCorsOrigins = (process.env.CORS_ORIGIN || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+const allowedOrigins = Array.from(new Set([frontendOrigin, ...configuredCorsOrigins]));
+const isProduction = process.env.NODE_ENV === "production";
+
+const isLocalhostOrigin = (origin) => {
+  try {
+    const parsed = new URL(origin);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+};
 
 const validateEnvironment = () => {
   const requiredVars = ["ACCESS_TOKEN_SECRET", "REFRESH_TOKEN_SECRET", "DB_URI"];
@@ -52,7 +63,12 @@ app.use(
         return;
       }
 
-      callback(new Error("Origin not allowed by CORS"));
+      if (!isProduction && isLocalhostOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin not allowed by CORS: ${origin}`));
     },
     credentials: true,
   })

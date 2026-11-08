@@ -68,9 +68,14 @@ const StudentChatbot = () => {
 
     const loadConversations = async () => {
       try {
-        const res = await apiCall("/api/student/conversations");
+        const res = await apiCall("/api/student/conversations", { token });
         if (!res.ok) {
-          throw new Error("Failed to fetch conversations");
+          const body = await res.json().catch(() => ({}));
+          if (res.status === 401) {
+            navigate("/login", { replace: true });
+            throw new Error("Session expired. Please log in again.");
+          }
+          throw new Error((body as { message?: string; error?: string }).message || (body as { message?: string; error?: string }).error || "Failed to fetch conversations");
         }
 
         const rawConversations = (await res.json()) as ConversationItem[];
@@ -93,6 +98,11 @@ const StudentChatbot = () => {
   }, [messages]);
 
   const handleSend = async (content: string) => {
+    if (!token) {
+      console.error("Missing access token for chat request");
+      return;
+    }
+
     const currentConversationId = activeConversationId;
 
     const userMessage: Message = {
@@ -117,6 +127,7 @@ const StudentChatbot = () => {
 
     try {
       const res = await apiCall("/api/student/chat", {
+        token,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -128,7 +139,12 @@ const StudentChatbot = () => {
       });
 
       if (!res.ok) {
-        throw new Error("Chat request failed");
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          navigate("/login", { replace: true });
+          throw new Error("Session expired. Please log in again.");
+        }
+        throw new Error((body as { message?: string; error?: string; providerMessage?: string }).error || (body as { message?: string; error?: string; providerMessage?: string }).providerMessage || "Chat request failed");
       }
 
       const newConversationId = res.headers.get("x-conversation-id");
@@ -202,12 +218,22 @@ const StudentChatbot = () => {
   };
 
   const handleSelectChat = async (id: string) => {
+    if (!token) {
+      console.error("Missing access token for conversation request");
+      return;
+    }
+
     setActiveConversationId(id);
 
     try {
-      const res = await apiCall(`/api/student/conversations/${id}`);
+      const res = await apiCall(`/api/student/conversations/${id}`, { token });
       if (!res.ok) {
-        throw new Error("Failed to fetch conversation");
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          navigate("/login", { replace: true });
+          throw new Error("Session expired. Please log in again.");
+        }
+        throw new Error((body as { message?: string; error?: string }).message || (body as { message?: string; error?: string }).error || "Failed to fetch conversation");
       }
 
       const data = (await res.json()) as ConversationMessage[];
